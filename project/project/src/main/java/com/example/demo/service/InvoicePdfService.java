@@ -1,9 +1,6 @@
 package com.example.demo.service;
 
-import com.example.demo.model.Customer;
-import com.example.demo.model.Item;
-import com.example.demo.model.Qitem;
-import com.example.demo.model.Quat;
+import com.example.demo.model.*;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -16,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -24,10 +20,10 @@ import java.util.List;
 public class InvoicePdfService {
 
     @Autowired
-    private QuatService quatService;
+    private InvoiceService invoiceService;
 
     @Autowired
-    private QitemService qitemService;
+    private InvoiceItemRepo invoiceItemRepo;
 
     // Company Information
     private static final String COMPANY_NAME = "Your Company Name";
@@ -37,27 +33,24 @@ public class InvoicePdfService {
     private static final String COMPANY_WEBSITE = "www.yourcompany.com";
     private static final String COMPANY_GSTIN = "22AAAAA0000A1Z5";
 
-    private static final float GST_RATE = 0.18f;
-    private static final float DISCOUNT_RATE = 0.05f; // 5% discount
-
-    public byte[] generateInvoicePdf(Long quatId) throws IOException {
-        // Validate quatId
-        if (quatId == null || quatId <= 0) {
-            throw new IllegalArgumentException("Invalid quotation ID");
+    public byte[] generateInvoicePdf(Long invoiceId) throws IOException {
+        // Validate invoiceId
+        if (invoiceId == null || invoiceId <= 0) {
+            throw new IllegalArgumentException("Invalid invoice ID");
         }
 
-        // Fetch quotation data
-        Quat quat = quatService.getQuatById(quatId)
-                .orElseThrow(() -> new RuntimeException("Quotation not found with ID: " + quatId));
+        // Fetch invoice data
+        Invoice invoice = invoiceService.getInvoiceById(invoiceId)
+                .orElseThrow(() -> new RuntimeException("Invoice not found with ID: " + invoiceId));
 
         // Fetch customer data
-        Customer customer = quat.getCustomer();
+        Customer customer = invoice.getCustomer();
         if (customer == null) {
-            throw new RuntimeException("Customer not found for quotation ID: " + quatId);
+            throw new RuntimeException("Customer not found for invoice ID: " + invoiceId);
         }
 
-        // Fetch quotation items
-        List<Qitem> quotationItems = qitemService.getQitemsByQuotationId(quatId);
+        // Fetch invoice items
+        List<InvoiceItem> invoiceItems = invoiceItemRepo.findByInvoiceId(invoiceId);
 
         // Create PDF document
         PDDocument document = new PDDocument();
@@ -76,16 +69,16 @@ public class InvoicePdfService {
             yPosition = addInvoiceTitle(contentStream, yPosition, margin, pageWidth);
 
             // Add invoice details
-            yPosition = addInvoiceDetails(contentStream, yPosition, margin, pageWidth, quat);
+            yPosition = addInvoiceDetails(contentStream, yPosition, margin, pageWidth, invoice);
 
             // Add customer details
             yPosition = addCustomerDetails(contentStream, yPosition, margin, pageWidth, customer);
 
             // Add items table
-            BigDecimal subTotal = addItemsTable(contentStream, yPosition, margin, pageWidth, quotationItems);
+            yPosition = addItemsTable(contentStream, yPosition, margin, pageWidth, invoiceItems);
 
-            // Add totals with GST and discount
-            addInvoiceTotals(contentStream, 200, margin, pageWidth, subTotal);
+            // Add totals
+            addInvoiceTotals(contentStream, yPosition - 50, margin, pageWidth, invoice);
 
             // Add footer
             addInvoiceFooter(contentStream, 100, margin, pageWidth);
@@ -144,43 +137,43 @@ public class InvoicePdfService {
         return yPosition - 30;
     }
 
-    private float addInvoiceDetails(PDPageContentStream contentStream, float yPosition, float margin, float pageWidth, Quat quat) throws IOException {
-        // Invoice number (based on quotation)
+    private float addInvoiceDetails(PDPageContentStream contentStream, float yPosition, float margin, float pageWidth, Invoice invoice) throws IOException {
+        // Invoice number
         contentStream.beginText();
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12);
         contentStream.newLineAtOffset(margin, yPosition);
         contentStream.showText("Invoice No: ");
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-        contentStream.showText("INV-" + quat.getQuatno());
+        contentStream.showText(invoice.getInvoiceno());
         contentStream.endText();
 
-        // Invoice date (current date)
+        // Invoice date
         contentStream.beginText();
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12);
         contentStream.newLineAtOffset(margin + 300, yPosition);
         contentStream.showText("Date: ");
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-        contentStream.showText(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")));
+        contentStream.showText(invoice.getInvoiceDate().format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")));
         contentStream.endText();
 
         yPosition -= 20;
 
-        // Reference quotation
+        // Due date
         contentStream.beginText();
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12);
         contentStream.newLineAtOffset(margin, yPosition);
-        contentStream.showText("Reference Quote: ");
+        contentStream.showText("Due Date: ");
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-        contentStream.showText(quat.getQuatno());
+        contentStream.showText(invoice.getDueDate().format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")));
         contentStream.endText();
 
-        // Due date (30 days from invoice date)
+        // Status
         contentStream.beginText();
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12);
         contentStream.newLineAtOffset(margin + 300, yPosition);
-        contentStream.showText("Due Date: ");
+        contentStream.showText("Status: ");
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-        contentStream.showText(LocalDateTime.now().plusDays(30).format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")));
+        contentStream.showText(invoice.getStatus().toString());
         contentStream.endText();
 
         return yPosition - 30;
@@ -238,14 +231,14 @@ public class InvoicePdfService {
         return yPosition - 30;
     }
 
-    private BigDecimal addItemsTable(PDPageContentStream contentStream, float yPosition, float margin, float pageWidth, List<Qitem> qitems) throws IOException {
+    private float addItemsTable(PDPageContentStream contentStream, float yPosition, float margin, float pageWidth, List<InvoiceItem> invoiceItems) throws IOException {
         float tableTop = yPosition;
         float tableHeight = 20;
         float rowHeight = 20;
 
         // Table headers
-        String[] headers = {"#", "Description", "License", "Qty", "Unit Price", "Amount"};
-        float[] columnWidths = {30, 200, 80, 50, 80, 80};
+        String[] headers = {"#", "Description", "License", "Qty", "Unit Price", "Discount", "Tax", "Amount"};
+        float[] columnWidths = {30, 150, 70, 40, 70, 60, 50, 70};
 
         // Draw table header
         contentStream.setLineWidth(1f);
@@ -259,7 +252,7 @@ public class InvoicePdfService {
 
         // Header text
         contentStream.beginText();
-        contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 10);
+        contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 9);
         for (int i = 0; i < headers.length; i++) {
             contentStream.newLineAtOffset(currentX + 5, tableTop - 15);
             contentStream.showText(headers[i]);
@@ -287,18 +280,18 @@ public class InvoicePdfService {
         contentStream.lineTo(margin + pageWidth, tableTop - tableHeight);
         contentStream.stroke();
 
-        BigDecimal subTotal = BigDecimal.ZERO;
         float currentY = tableTop - tableHeight;
         int rowNum = 1;
 
         // Add data rows
-        for (Qitem qitem : qitems) {
-            Item item = qitem.getItem();
+        for (InvoiceItem invoiceItem : invoiceItems) {
+            Item item = invoiceItem.getItem();
             String itemName = item != null ? item.getItemname() : "Unknown Item";
-            String licenseType = qitem.getLicenseType() != null ? qitem.getLicenseType() : "Standard";
-            BigDecimal unitPrice = qitem.getUnitPrice() != null ? qitem.getUnitPrice() : BigDecimal.ZERO;
-            BigDecimal itemTotal = qitem.getTotalPrice() != null ? qitem.getTotalPrice() : BigDecimal.ZERO;
-            subTotal = subTotal.add(itemTotal);
+            String licenseType = invoiceItem.getLicenseType() != null ? invoiceItem.getLicenseType() : "Standard";
+            BigDecimal unitPrice = invoiceItem.getUnitPrice() != null ? invoiceItem.getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal discountPercentage = invoiceItem.getDiscountPercentage() != null ? invoiceItem.getDiscountPercentage() : BigDecimal.ZERO;
+            BigDecimal taxPercentage = invoiceItem.getTaxPercentage() != null ? invoiceItem.getTaxPercentage() : BigDecimal.ZERO;
+            BigDecimal itemTotal = invoiceItem.getTotalPrice() != null ? invoiceItem.getTotalPrice() : BigDecimal.ZERO;
 
             currentY -= rowHeight;
             currentX = margin;
@@ -308,13 +301,15 @@ public class InvoicePdfService {
                 String.valueOf(rowNum++),
                 itemName,
                 licenseType,
-                String.valueOf(qitem.getQuantity()),
+                String.valueOf(invoiceItem.getQuantity()),
                 String.format("₹%.2f", unitPrice),
+                String.format("%.1f%%", discountPercentage),
+                String.format("%.1f%%", taxPercentage),
                 String.format("₹%.2f", itemTotal)
             };
 
             contentStream.beginText();
-            contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 9);
+            contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 8);
             for (int i = 0; i < rowData.length; i++) {
                 contentStream.newLineAtOffset(currentX + 5, currentY + 5);
                 contentStream.showText(rowData[i]);
@@ -340,19 +335,13 @@ public class InvoicePdfService {
             contentStream.stroke();
         }
 
-        return subTotal;
+        return currentY - 20;
     }
 
-    private void addInvoiceTotals(PDPageContentStream contentStream, float yPosition, float margin, float pageWidth, BigDecimal subTotal) throws IOException {
+    private void addInvoiceTotals(PDPageContentStream contentStream, float yPosition, float margin, float pageWidth, Invoice invoice) throws IOException {
         float totalBoxWidth = 250;
         float totalBoxX = margin + pageWidth - totalBoxWidth;
         float lineHeight = 25;
-
-        // Calculate amounts
-        BigDecimal discountAmount = subTotal.multiply(BigDecimal.valueOf(DISCOUNT_RATE));
-        BigDecimal afterDiscount = subTotal.subtract(discountAmount);
-        BigDecimal gstAmount = afterDiscount.multiply(BigDecimal.valueOf(GST_RATE));
-        BigDecimal grandTotal = afterDiscount.add(gstAmount);
 
         // Subtotal
         contentStream.beginText();
@@ -360,7 +349,7 @@ public class InvoicePdfService {
         contentStream.newLineAtOffset(totalBoxX, yPosition);
         contentStream.showText("Subtotal:");
         contentStream.newLineAtOffset(150, 0);
-        contentStream.showText("₹" + String.format("%.2f", subTotal));
+        contentStream.showText("₹" + String.format("%.2f", invoice.getSubtotal()));
         contentStream.endText();
 
         yPosition -= lineHeight;
@@ -369,31 +358,20 @@ public class InvoicePdfService {
         contentStream.beginText();
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
         contentStream.newLineAtOffset(totalBoxX, yPosition);
-        contentStream.showText("Discount (" + (DISCOUNT_RATE * 100) + "%):");
+        contentStream.showText("Discount:");
         contentStream.newLineAtOffset(150, 0);
-        contentStream.showText("-₹" + String.format("%.2f", discountAmount));
+        contentStream.showText("-₹" + String.format("%.2f", invoice.getDiscountAmount()));
         contentStream.endText();
 
         yPosition -= lineHeight;
 
-        // After discount
+        // Tax
         contentStream.beginText();
         contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
         contentStream.newLineAtOffset(totalBoxX, yPosition);
-        contentStream.showText("After Discount:");
+        contentStream.showText("Tax:");
         contentStream.newLineAtOffset(150, 0);
-        contentStream.showText("₹" + String.format("%.2f", afterDiscount));
-        contentStream.endText();
-
-        yPosition -= lineHeight;
-
-        // GST
-        contentStream.beginText();
-        contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-        contentStream.newLineAtOffset(totalBoxX, yPosition);
-        contentStream.showText("GST (" + (GST_RATE * 100) + "%):");
-        contentStream.newLineAtOffset(150, 0);
-        contentStream.showText("₹" + String.format("%.2f", gstAmount));
+        contentStream.showText("₹" + String.format("%.2f", invoice.getTaxAmount()));
         contentStream.endText();
 
         yPosition -= lineHeight;
@@ -409,11 +387,11 @@ public class InvoicePdfService {
         contentStream.newLineAtOffset(totalBoxX, yPosition);
         contentStream.showText("Grand Total:");
         contentStream.newLineAtOffset(150, 0);
-        contentStream.showText("₹" + String.format("%.2f", grandTotal));
+        contentStream.showText("₹" + String.format("%.2f", invoice.getTotalAmount()));
         contentStream.endText();
 
         // Border around totals
-        contentStream.addRect(totalBoxX - 5, yPosition - 5, totalBoxWidth, 130);
+        contentStream.addRect(totalBoxX - 5, yPosition - 5, totalBoxWidth, 105);
         contentStream.stroke();
     }
 

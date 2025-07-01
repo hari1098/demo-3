@@ -62,23 +62,14 @@ public class SecurityConfig {
             .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/auth/**").permitAll()
-                 //   .requestMatchers("/api/customer/**").permitAll()
-               // .requestMatchers("/api/logins").hasRole("ADMIN")
-                            .requestMatchers("/api/logins").permitAll()
-                            .requestMatchers("/api/logins/**").permitAll()
-               // .requestMatchers("/api/logins/**").hasRole("ADMIN")
-               // .requestMatchers("/api/customer/**").hasAnyRole("ADMIN", "USER")
-                            .requestMatchers("/api/customer/**").permitAll()
-                            .requestMatchers("/api/items/**").permitAll()
-
-//                .requestMatchers("/api/items/**").hasAnyRole("ADMIN", "USER")
-                //.requestMatchers("/api/quat/**").hasAnyRole("ADMIN", "USER")
-                            .requestMatchers("/api/quat/**").permitAll()
-//                .requestMatchers("/api/qitem/**").hasAnyRole("ADMIN", "USER")
-//                .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "USER")
-                            .requestMatchers("/api/qitem/**").permitAll()
-                    .requestMatchers("/api/invoices/**").permitAll()
+                .requestMatchers("/auth/**").permitAll()
+                .requestMatchers("/logins").hasRole("ADMIN")
+                .requestMatchers("/logins/**").hasRole("ADMIN")
+                .requestMatchers("/customer/**").hasAnyRole("ADMIN", "USER")
+                .requestMatchers("/items/**").hasAnyRole("ADMIN", "USER")
+                .requestMatchers("/quat/**").hasAnyRole("ADMIN", "USER")
+                .requestMatchers("/qitem/**").hasAnyRole("ADMIN", "USER")
+                .requestMatchers("/invoices/**").hasAnyRole("ADMIN", "USER")
                 .anyRequest().authenticated()
             );
 
@@ -92,7 +83,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         
